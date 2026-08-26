@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Raw/unprocessed source files — not needed for the live site.
+# The 345MB video exceeds GitHub's 100MB file size limit, so it MUST stay out.
+assets/img/landscape_one.mp4
+
+# Raw DSLR photo originals (already resized/compressed into assets/img/).
+# Remove these lines if you'd rather keep the full-resolution originals in the repo.
+assets/Bunkroom/
+assets/Junior Suite/
+assets/Master/
