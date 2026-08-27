@@ -89,6 +89,28 @@ if (counters.length) {
   }
 }
 
+// Photo rotator — crossfades between the <img> children of any .photo-rotator,
+// one at a time, on a timer. Works with any number of images (2+). Skips the
+// auto-rotation for reduced-motion users; they just see the first photo.
+const rotators = document.querySelectorAll('.photo-rotator');
+if (rotators.length && !reduceMotion) {
+  rotators.forEach(rotator => {
+    const imgs = Array.from(rotator.querySelectorAll('img'));
+    if (imgs.length < 2) return;
+    let current = imgs.findIndex(img => img.classList.contains('active'));
+    if (current === -1) {
+      current = 0;
+      imgs[0].classList.add('active');
+    }
+    setInterval(() => {
+      const next = (current + 1) % imgs.length;
+      imgs[current].classList.remove('active');
+      imgs[next].classList.add('active');
+      current = next;
+    }, 5000);
+  });
+}
+
 // Gallery lightbox — click any photo in a .gallery-grid to view it full-size,
 // with prev/next arrows scoped to whichever gallery it belongs to. Built
 // once here so it works on the homepage and every room page without any

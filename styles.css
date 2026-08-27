@@ -224,6 +224,29 @@ ul { list-style: none; }
 
 .about { background: var(--sand); }
 
+/* Photo rotator — crossfades between however many <img> children it has */
+.photo-rotator {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.photo-rotator img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0;
+  opacity: 0;
+  transition: opacity 1.4s ease;
+}
+.photo-rotator img.active { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .photo-rotator img { transition: none; }
+}
+
 /* Amenities */
 .amenities-grid {
   display: grid;
