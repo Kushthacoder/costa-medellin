@@ -1,128 +1,159 @@
-// All lookups below are guarded with null-checks since this script runs on
-// both the homepage (which has the hero/form/counters) and the individual
-// room pages (which don't) — a missing element should never break the rest.
-
-const yearEl = document.getElementById('year');
-if (yearEl) yearEl.textContent = new Date().getFullYear();
-
-const navToggle = document.getElementById('navToggle');
-const navLinks = document.getElementById('navLinks');
-if (navToggle && navLinks) {
-  navToggle.addEventListener('click', () => navLinks.classList.toggle('open'));
-  navLinks.querySelectorAll('a').forEach(link =>
-    link.addEventListener('click', () => navLinks.classList.remove('open'))
-  );
-}
-
-const form = document.getElementById('inquiryForm');
-const note = document.getElementById('formNote');
-if (form && note) {
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    note.textContent = "Thanks! This is a demo form — connect it to Formspree, Netlify Forms, or your email backend to receive real inquiries.";
-    form.reset();
-  });
-}
-
-// Nav background on scroll
-const navbar = document.querySelector('.navbar');
-if (navbar) {
-  const onScroll = () => navbar.classList.toggle('scrolled', window.scrollY > 60);
-  window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
-}
-
-// Hero parallax
-const heroBg = document.getElementById('heroBg');
+// initPage() sets up everything that's specific to whatever page content is
+// currently in the DOM (nav toggle, form, scroll effects, reveal animations,
+// counters, photo rotators). It runs once on the initial page load, and then
+// runs again every time the pjax-style router at the bottom of this file
+// swaps in a new page's <header>/<main> — which is how the lofi music player
+// and gallery lightbox (both set up separately, once, below) survive
+// visitors clicking between pages instead of getting torn down on every
+// navigation. Because it can run more than once, anything it attaches to
+// something that ISN'T replaced on a swap (window, document) cleans up its
+// own previous instance first so repeated navigation doesn't stack up
+// duplicate listeners/timers.
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-if (heroBg && !reduceMotion) {
-  window.addEventListener('scroll', () => {
-    const offset = window.scrollY;
-    if (offset < window.innerHeight) {
-      heroBg.style.transform = `translateY(${offset * 0.35}px)`;
-    }
-  }, { passive: true });
-}
 
-// Scroll reveal
-const revealEls = document.querySelectorAll('.reveal');
-if (reduceMotion) {
-  revealEls.forEach(el => el.classList.add('in-view'));
-} else {
-  const revealObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('in-view');
-        revealObserver.unobserve(entry.target);
-      }
+let navbarScrollHandler = null;
+let heroParallaxHandler = null;
+let revealObserver = null;
+let countObserver = null;
+let rotatorIntervals = [];
+
+function initPage() {
+  const yearEl = document.getElementById('year');
+  if (yearEl) yearEl.textContent = new Date().getFullYear();
+
+  const navToggle = document.getElementById('navToggle');
+  const navLinks = document.getElementById('navLinks');
+  if (navToggle && navLinks) {
+    navToggle.addEventListener('click', () => navLinks.classList.toggle('open'));
+    navLinks.querySelectorAll('a').forEach(link =>
+      link.addEventListener('click', () => navLinks.classList.remove('open'))
+    );
+  }
+
+  const form = document.getElementById('inquiryForm');
+  const note = document.getElementById('formNote');
+  if (form && note) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      note.textContent = "Thanks! This is a demo form — connect it to Formspree, Netlify Forms, or your email backend to receive real inquiries.";
+      form.reset();
     });
-  }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
-  revealEls.forEach(el => revealObserver.observe(el));
-}
+  }
 
-// Animated counters
-const counters = document.querySelectorAll('.count');
-const animateCount = (el) => {
-  const target = parseInt(el.dataset.target, 10);
-  const duration = 900;
-  const start = performance.now();
-  const tick = (now) => {
-    const progress = Math.min((now - start) / duration, 1);
-    el.textContent = Math.round(progress * target);
-    if (progress < 1) requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
-};
-if (counters.length) {
-  if (reduceMotion) {
-    counters.forEach(el => el.textContent = el.dataset.target);
+  // Nav background on scroll
+  if (navbarScrollHandler) window.removeEventListener('scroll', navbarScrollHandler);
+  const navbar = document.querySelector('.navbar');
+  if (navbar) {
+    navbarScrollHandler = () => navbar.classList.toggle('scrolled', window.scrollY > 60);
+    window.addEventListener('scroll', navbarScrollHandler, { passive: true });
+    navbarScrollHandler();
   } else {
-    const countObserver = new IntersectionObserver((entries) => {
+    navbarScrollHandler = null;
+  }
+
+  // Hero parallax (homepage only)
+  if (heroParallaxHandler) window.removeEventListener('scroll', heroParallaxHandler);
+  const heroBg = document.getElementById('heroBg');
+  if (heroBg && !reduceMotion) {
+    heroParallaxHandler = () => {
+      const offset = window.scrollY;
+      if (offset < window.innerHeight) {
+        heroBg.style.transform = `translateY(${offset * 0.35}px)`;
+      }
+    };
+    window.addEventListener('scroll', heroParallaxHandler, { passive: true });
+  } else {
+    heroParallaxHandler = null;
+  }
+
+  // Scroll reveal
+  if (revealObserver) revealObserver.disconnect();
+  const revealEls = document.querySelectorAll('.reveal');
+  if (reduceMotion) {
+    revealEls.forEach(el => el.classList.add('in-view'));
+  } else {
+    revealObserver = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
         if (entry.isIntersecting) {
-          animateCount(entry.target);
-          countObserver.unobserve(entry.target);
+          entry.target.classList.add('in-view');
+          revealObserver.unobserve(entry.target);
         }
       });
-    }, { threshold: 0.6 });
-    counters.forEach(el => countObserver.observe(el));
+    }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+    revealEls.forEach(el => revealObserver.observe(el));
+  }
+
+  // Animated counters
+  if (countObserver) countObserver.disconnect();
+  const counters = document.querySelectorAll('.count');
+  const animateCount = (el) => {
+    const target = parseInt(el.dataset.target, 10);
+    const duration = 900;
+    const start = performance.now();
+    const tick = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      el.textContent = Math.round(progress * target);
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  };
+  if (counters.length) {
+    if (reduceMotion) {
+      counters.forEach(el => el.textContent = el.dataset.target);
+    } else {
+      countObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            animateCount(entry.target);
+            countObserver.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.6 });
+      counters.forEach(el => countObserver.observe(el));
+    }
+  }
+
+  // Photo rotator — crossfades between the <img> children of any
+  // .photo-rotator, one at a time, on a timer. Previous rotators' intervals
+  // are cleared first so navigating away doesn't leave zombie timers
+  // running against detached images forever.
+  rotatorIntervals.forEach(clearInterval);
+  rotatorIntervals = [];
+  const rotators = document.querySelectorAll('.photo-rotator');
+  if (rotators.length && !reduceMotion) {
+    rotators.forEach(rotator => {
+      const imgs = Array.from(rotator.querySelectorAll('img'));
+      if (imgs.length < 2) return;
+      // Optional caption (e.g. "Bunk Room") labeling which photo is
+      // currently showing — only present when the markup includes a
+      // .rotator-label element and data-label attributes on the images.
+      const label = rotator.querySelector('.rotator-label');
+      let current = imgs.findIndex(img => img.classList.contains('active'));
+      if (current === -1) {
+        current = 0;
+        imgs[0].classList.add('active');
+      }
+      if (label && imgs[current].dataset.label) label.textContent = imgs[current].dataset.label;
+      const intervalId = setInterval(() => {
+        const next = (current + 1) % imgs.length;
+        imgs[current].classList.remove('active');
+        imgs[next].classList.add('active');
+        current = next;
+        if (label && imgs[current].dataset.label) label.textContent = imgs[current].dataset.label;
+      }, 5000);
+      rotatorIntervals.push(intervalId);
+    });
   }
 }
 
-// Photo rotator — crossfades between the <img> children of any .photo-rotator,
-// one at a time, on a timer. Works with any number of images (2+). Skips the
-// auto-rotation for reduced-motion users; they just see the first photo.
-const rotators = document.querySelectorAll('.photo-rotator');
-if (rotators.length && !reduceMotion) {
-  rotators.forEach(rotator => {
-    const imgs = Array.from(rotator.querySelectorAll('img'));
-    if (imgs.length < 2) return;
-    // Optional caption (e.g. "Bunk Room") labeling which photo is currently
-    // showing — only present when the markup includes a .rotator-label
-    // element and data-label attributes on the images.
-    const label = rotator.querySelector('.rotator-label');
-    let current = imgs.findIndex(img => img.classList.contains('active'));
-    if (current === -1) {
-      current = 0;
-      imgs[0].classList.add('active');
-    }
-    if (label && imgs[current].dataset.label) label.textContent = imgs[current].dataset.label;
-    setInterval(() => {
-      const next = (current + 1) % imgs.length;
-      imgs[current].classList.remove('active');
-      imgs[next].classList.add('active');
-      current = next;
-      if (label && imgs[current].dataset.label) label.textContent = imgs[current].dataset.label;
-    }, 5000);
-  });
-}
-
-// Gallery lightbox — click any photo in a .gallery-grid to view it full-size,
-// with prev/next arrows scoped to whichever gallery it belongs to. Built
-// once here so it works on the homepage and every room page without any
-// extra markup in the HTML.
-const galleryGrids = document.querySelectorAll('.gallery-grid');
-if (galleryGrids.length) {
+// Gallery lightbox — click any photo in a .gallery-grid to view it
+// full-size, with prev/next arrows scoped to whichever gallery it belongs
+// to. The overlay is built once and lives outside <main>, so it survives
+// page swaps below; clicks are handled via delegation on document rather
+// than bound per-image, so it automatically covers whatever gallery images
+// are on the page at any given time — including ones swapped in later —
+// with nothing to rebind.
+(function () {
   const overlay = document.createElement('div');
   overlay.className = 'lightbox-overlay';
   overlay.setAttribute('role', 'dialog');
@@ -178,11 +209,12 @@ if (galleryGrids.length) {
     showCurrent();
   };
 
-  galleryGrids.forEach(grid => {
+  document.addEventListener('click', (e) => {
+    const img = e.target.closest('.gallery-grid img');
+    if (!img) return;
+    const grid = img.closest('.gallery-grid');
     const imgsInGrid = Array.from(grid.querySelectorAll('img'));
-    imgsInGrid.forEach((img, i) => {
-      img.addEventListener('click', () => openLightbox(imgsInGrid, i));
-    });
+    openLightbox(imgsInGrid, imgsInGrid.indexOf(img));
   });
 
   btnClose.addEventListener('click', closeLightbox);
@@ -197,7 +229,7 @@ if (galleryGrids.length) {
     if (e.key === 'ArrowRight') showNext();
     if (e.key === 'ArrowLeft') showPrev();
   });
-}
+})();
 
 // Lofi background music — a small floating widget that lets visitors
 // optionally play a lofi mix (via YouTube's official embed, so no audio
@@ -208,6 +240,11 @@ if (galleryGrids.length) {
 // play() is called synchronously inside the click handler, and creating
 // the whole YouTube embed on-demand after a click introduces a delay that
 // gets the click treated as "not a real user gesture" anymore.
+//
+// This whole widget is built once, here, and lives directly on <body> —
+// outside the <header>/<main> that the router below swaps on navigation —
+// so once a visitor hits play, the music keeps playing no matter what page
+// they click into next.
 (function () {
   const YT_VIDEO_ID = 'QwYKO-SCRaI'; // Japanese Beach — Summer Lofi / Ocean lofi hip hop mix
 
@@ -324,4 +361,81 @@ if (galleryGrids.length) {
     localStorage.setItem('lofiVolume', String(vol));
     if (player && player.setVolume) player.setVolume(vol);
   });
+})();
+
+// Pjax-style navigation — intercepts clicks on internal .html links (nav
+// links, room cards, "Explore Room", "Send an Inquiry", etc.) and swaps just
+// the <header> and <main> content via fetch instead of doing a full browser
+// navigation. Everything outside those two elements — the lofi player and
+// the gallery lightbox set up above — is never touched, so the music
+// doesn't cut out when a visitor clicks from the homepage into a room page
+// and back. Falls back to a normal navigation for external links, non-HTML
+// links, or if the fetch fails for any reason, so the site still works
+// exactly as a plain multi-page site if JS fails to load.
+(function () {
+  const parser = new DOMParser();
+
+  function isInternalPageLink(link) {
+    if (!link || link.target === '_blank' || link.hasAttribute('download')) return false;
+    if (link.origin !== window.location.origin) return false;
+    return /\.html$/i.test(link.pathname);
+  }
+
+  async function swapPage(url, addHistory) {
+    let html;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('bad response: ' + res.status);
+      html = await res.text();
+    } catch (err) {
+      window.location.href = url;
+      return;
+    }
+
+    const doc = parser.parseFromString(html, 'text/html');
+    const newHeader = doc.querySelector('header.site-header');
+    const newMain = doc.querySelector('main');
+    const curHeader = document.querySelector('header.site-header');
+    const curMain = document.querySelector('main');
+    if (!newHeader || !newMain || !curHeader || !curMain) {
+      window.location.href = url;
+      return;
+    }
+
+    curHeader.replaceWith(newHeader);
+    curMain.replaceWith(newMain);
+    document.title = doc.title;
+    if (addHistory) history.pushState({ pjax: true }, '', url);
+
+    const hash = new URL(url, window.location.href).hash;
+    const target = hash ? document.getElementById(decodeURIComponent(hash.slice(1))) : null;
+    if (target) {
+      target.scrollIntoView();
+    } else {
+      window.scrollTo(0, 0);
+    }
+
+    initPage();
+  }
+
+  document.addEventListener('click', (e) => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const link = e.target.closest('a[href]');
+    if (!link || !isInternalPageLink(link)) return;
+
+    // A hash link pointing at the page we're already on (e.g. clicking
+    // "About" while already on the homepage) is just an in-page scroll —
+    // let the browser handle that natively, nothing to swap.
+    if (link.pathname === window.location.pathname && link.hash) return;
+
+    e.preventDefault();
+    swapPage(link.href, true);
+  });
+
+  window.addEventListener('popstate', () => {
+    swapPage(window.location.href, false);
+  });
+
+  // Initial run, for the page as it was actually loaded.
+  initPage();
 })();
