@@ -248,26 +248,42 @@ ul { list-style: none; }
 }
 
 /* Amenities */
+.amenities {
+  background-image:
+    linear-gradient(rgba(246, 241, 231, 0.88), rgba(246, 241, 231, 0.88)),
+    url('assets/img/card-pattern.jpg');
+  background-size: auto, 480px auto;
+  background-position: center, center;
+  background-repeat: no-repeat, repeat;
+}
 .amenities-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 1.5rem;
+  gap: 1.3rem;
   margin-top: 2.5rem;
 }
 .amenity-card {
-  background: var(--sand);
+  background: rgba(255, 255, 255, 0.88);
   border-radius: var(--radius);
-  padding: 1.8rem 1.4rem;
+  padding: 1.7rem 1.3rem;
   text-align: center;
-  transition: transform 0.2s ease;
+  box-shadow: 0 4px 16px rgba(11, 61, 76, 0.08);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
-.amenity-card { transition: transform 0.3s ease, box-shadow 0.3s ease; }
-.amenity-card:hover { transform: translateY(-6px); box-shadow: var(--shadow); }
-.amenity-icon { transition: transform 0.3s ease; }
-.amenity-card:hover .amenity-icon { transform: scale(1.15) rotate(-4deg); }
-.amenity-icon { font-size: 2rem; margin-bottom: 0.8rem; }
+.amenity-card:hover { transform: translateY(-4px); box-shadow: var(--shadow); }
+.amenity-icon {
+  width: 26px;
+  height: 26px;
+  stroke: var(--sea-dark);
+  fill: none;
+  stroke-width: 1.6;
+  margin: 0 auto 0.9rem;
+}
 .amenity-card h3 { font-size: 1.05rem; margin-bottom: 0.4rem; }
 .amenity-card p { color: var(--muted); font-size: 0.9rem; }
+@media (max-width: 720px) {
+  .amenities { background-size: auto, 320px auto; }
+}
 
 /* Rooms */
 .rooms-grid {
@@ -385,6 +401,36 @@ ul { list-style: none; }
   cursor: zoom-in;
 }
 .gallery-item:hover img { transform: scale(1.08); }
+
+/* Gallery card that cycles through multiple photos (e.g. Bedroom: one per room) */
+.gallery-item .photo-rotator {
+  aspect-ratio: 4/3;
+  border-radius: 0;
+  box-shadow: none;
+}
+.gallery-item .photo-rotator img {
+  cursor: zoom-in;
+  pointer-events: none;
+  transition: opacity 1.4s ease, transform 0.5s ease;
+}
+.gallery-item .photo-rotator img.active { pointer-events: auto; }
+.gallery-item .photo-rotator .rotator-label {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 2;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  background: rgba(11, 61, 76, 0.72);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gallery-item .photo-rotator img { transition: none; }
+}
 
 /* Lightbox */
 .lightbox-overlay {
@@ -586,4 +632,61 @@ body.lightbox-lock { overflow: hidden; }
   .lightbox-close { width: 36px; height: 36px; font-size: 1.4rem; top: 1rem; right: 1rem; }
   .lightbox-prev { left: 0.6rem; }
   .lightbox-next { right: 0.6rem; }
+  .lofi-player { right: 0.75rem; bottom: 0.75rem; padding: 0.4rem; gap: 0; }
+  .lofi-info, .lofi-volume { display: none; }
+}
+
+/* Lofi background music player */
+.lofi-player {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.4rem 1rem 0.4rem 0.4rem;
+  background: var(--sea-dark);
+  color: #fff;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+}
+.lofi-player-host {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0.01;
+  pointer-events: none;
+}
+.lofi-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-radius: 50%;
+  background: var(--sea-light);
+  color: var(--sea-dark);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.lofi-toggle:hover { background: #fff; }
+.lofi-toggle:disabled { background: var(--muted); cursor: not-allowed; opacity: 0.6; }
+.lofi-toggle svg { display: block; }
+.lofi-icon-play { margin-left: 2px; }
+.lofi-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.lofi-label { font-size: 0.8rem; font-weight: 600; }
+.lofi-sub { font-size: 0.68rem; opacity: 0.75; }
+.lofi-volume {
+  width: 70px;
+  accent-color: var(--sea-light);
+  cursor: pointer;
 }

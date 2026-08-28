@@ -97,16 +97,22 @@ if (rotators.length && !reduceMotion) {
   rotators.forEach(rotator => {
     const imgs = Array.from(rotator.querySelectorAll('img'));
     if (imgs.length < 2) return;
+    // Optional caption (e.g. "Bunk Room") labeling which photo is currently
+    // showing — only present when the markup includes a .rotator-label
+    // element and data-label attributes on the images.
+    const label = rotator.querySelector('.rotator-label');
     let current = imgs.findIndex(img => img.classList.contains('active'));
     if (current === -1) {
       current = 0;
       imgs[0].classList.add('active');
     }
+    if (label && imgs[current].dataset.label) label.textContent = imgs[current].dataset.label;
     setInterval(() => {
       const next = (current + 1) % imgs.length;
       imgs[current].classList.remove('active');
       imgs[next].classList.add('active');
       current = next;
+      if (label && imgs[current].dataset.label) label.textContent = imgs[current].dataset.label;
     }, 5000);
   });
 }
@@ -192,3 +198,130 @@ if (galleryGrids.length) {
     if (e.key === 'ArrowLeft') showPrev();
   });
 }
+
+// Lofi background music — a small floating widget that lets visitors
+// optionally play a lofi mix (via YouTube's official embed, so no audio
+// files are hosted here) behind the site. Off by default: browsers block
+// autoplay-with-sound, so nothing plays until a visitor clicks. The player
+// itself is created as soon as the page loads (paused) rather than on
+// click — some browsers (notably Safari) only allow starting audio when
+// play() is called synchronously inside the click handler, and creating
+// the whole YouTube embed on-demand after a click introduces a delay that
+// gets the click treated as "not a real user gesture" anymore.
+(function () {
+  const YT_VIDEO_ID = 'QwYKO-SCRaI'; // Japanese Beach — Summer Lofi / Ocean lofi hip hop mix
+
+  const widget = document.createElement('div');
+  widget.className = 'lofi-player';
+  widget.innerHTML = `
+    <div id="lofiPlayerHost" class="lofi-player-host" aria-hidden="true"></div>
+    <button type="button" class="lofi-toggle" aria-pressed="false" aria-label="Play background lofi music">
+      <svg class="lofi-icon-play" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg>
+      <svg class="lofi-icon-pause" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" hidden><path d="M6 5h4v14H6zM14 5h4v14h-4z"></path></svg>
+    </button>
+    <div class="lofi-info">
+      <span class="lofi-label">Lofi Radio</span>
+      <span class="lofi-sub">ocean lofi mix</span>
+    </div>
+    <input type="range" class="lofi-volume" min="0" max="100" value="40" aria-label="Music volume">
+  `;
+  document.body.appendChild(widget);
+
+  const toggleBtn = widget.querySelector('.lofi-toggle');
+  const playIcon = widget.querySelector('.lofi-icon-play');
+  const pauseIcon = widget.querySelector('.lofi-icon-pause');
+  const subLabel = widget.querySelector('.lofi-sub');
+  const defaultSubText = subLabel.textContent;
+  const volumeSlider = widget.querySelector('.lofi-volume');
+
+  const savedVolume = parseInt(localStorage.getItem('lofiVolume'), 10);
+  if (!isNaN(savedVolume) && savedVolume >= 0 && savedVolume <= 100) {
+    volumeSlider.value = savedVolume;
+  }
+
+  let player = null;
+  let playerReady = false;
+  let playing = false;
+  let pendingPlay = false;
+
+  function setPlayingUI(isPlaying) {
+    playing = isPlaying;
+    playIcon.hidden = isPlaying;
+    pauseIcon.hidden = !isPlaying;
+    toggleBtn.setAttribute('aria-pressed', String(isPlaying));
+    toggleBtn.setAttribute('aria-label', isPlaying ? 'Pause background lofi music' : 'Play background lofi music');
+  }
+
+  function showError(message) {
+    subLabel.textContent = message;
+    toggleBtn.disabled = true;
+  }
+
+  function createPlayer() {
+    player = new YT.Player('lofiPlayerHost', {
+      height: '1',
+      width: '1',
+      videoId: YT_VIDEO_ID,
+      playerVars: { autoplay: 0, controls: 0, loop: 1, playlist: YT_VIDEO_ID },
+      events: {
+        onReady: () => {
+          playerReady = true;
+          player.setVolume(parseInt(volumeSlider.value, 10));
+          if (pendingPlay) {
+            pendingPlay = false;
+            player.playVideo();
+            setPlayingUI(true);
+          }
+        },
+        onStateChange: (e) => {
+          if (e.data === YT.PlayerState.PLAYING) setPlayingUI(true);
+          if (e.data === YT.PlayerState.PAUSED) setPlayingUI(false);
+        },
+        onError: () => {
+          showError('unavailable right now');
+        }
+      }
+    });
+  }
+
+  // Load the YouTube iframe API and build the (paused) player immediately,
+  // so the very first click can call playVideo() synchronously.
+  const previousCallback = window.onYouTubeIframeAPIReady;
+  window.onYouTubeIframeAPIReady = function () {
+    if (typeof previousCallback === 'function') previousCallback();
+    createPlayer();
+  };
+  const tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  tag.onerror = () => showError('blocked by browser/extension');
+  document.head.appendChild(tag);
+
+  // If the API never calls back (ad blocker, offline, etc.), fail visibly
+  // instead of leaving the button silently doing nothing forever.
+  setTimeout(() => {
+    if (!playerReady) showError('blocked by browser/extension');
+  }, 8000);
+
+  toggleBtn.addEventListener('click', () => {
+    if (!playerReady) {
+      // Player still loading — remember the intent and play as soon as
+      // onReady fires.
+      pendingPlay = !pendingPlay;
+      subLabel.textContent = pendingPlay ? 'loading…' : defaultSubText;
+      return;
+    }
+    if (playing) {
+      player.pauseVideo();
+      setPlayingUI(false);
+    } else {
+      player.playVideo();
+      setPlayingUI(true);
+    }
+  });
+
+  volumeSlider.addEventListener('input', () => {
+    const vol = parseInt(volumeSlider.value, 10);
+    localStorage.setItem('lofiVolume', String(vol));
+    if (player && player.setVolume) player.setVolume(vol);
+  });
+})();
