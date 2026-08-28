@@ -51,6 +51,8 @@ function initPage() {
         _honey: form.elements._honey ? form.elements._honey.value : '',
       };
 
+      const failText = 'Sorry, we could not send your inquiry. Please email costamedellin.ph@gmail.com or try again.';
+
       try {
         const res = await fetch('/api/inquire', {
           method: 'POST',
@@ -63,16 +65,54 @@ function initPage() {
         } catch {
           data = {};
         }
-        if (res.ok && data.ok) {
-          note.textContent = data.needsActivation
-            ? 'Thanks! Costa Medellin needs to confirm a one-time email before inquiries arrive. You can also write us at costamedellin.ph@gmail.com.'
-            : 'Thanks! Your inquiry has been sent. We will get back to you soon.';
-          form.reset();
-        } else {
-          note.textContent = data.error || 'Sorry, we could not send your inquiry. Please email costamedellin.ph@gmail.com or try again.';
+        if (!res.ok || !data.ok) {
+          note.textContent = data.error || failText;
+          return;
         }
+
+        // Honeypot: gate acknowledges without returning a mail URL.
+        if (!data.submitUrl) {
+          note.textContent = 'Thanks! Your inquiry has been sent. We will get back to you soon.';
+          form.reset();
+          return;
+        }
+
+        const mailRes = await fetch(data.submitUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            name: payload.name,
+            email: payload.email,
+            checkin: payload.checkin,
+            checkout: payload.checkout,
+            guests: payload.guests,
+            message: payload.message,
+            _subject: 'Costa Medellin inquiry',
+            _replyto: payload.email,
+            _captcha: 'false',
+          }),
+        });
+        let mailData = {};
+        try {
+          mailData = await mailRes.json();
+        } catch {
+          mailData = {};
+        }
+        const mailText = String(mailData.message || '').toLowerCase();
+        const needsActivation = mailText.includes('activat') || mailText.includes('confirm your email');
+        const mailFailed =
+          !needsActivation &&
+          (!mailRes.ok || mailData.success === false || mailData.success === 'false');
+        if (mailFailed) {
+          note.textContent = failText;
+          return;
+        }
+        note.textContent = needsActivation
+          ? 'Thanks! Costa Medellin needs to confirm a one-time email before inquiries arrive. You can also write us at costamedellin.ph@gmail.com.'
+          : 'Thanks! Your inquiry has been sent. We will get back to you soon.';
+        form.reset();
       } catch {
-        note.textContent = 'Sorry, we could not send your inquiry. Please email costamedellin.ph@gmail.com or try again.';
+        note.textContent = failText;
       } finally {
         form.dataset.sending = '0';
         if (submitBtn) submitBtn.disabled = false;

@@ -83,11 +83,6 @@ function validateInquiry(fields) {
   return null;
 }
 
-function isActivationMessage(message) {
-  const text = String(message || '').toLowerCase();
-  return text.includes('activat') || text.includes('confirm your email');
-}
-
 function corsHeaders(origin) {
   return {
     'Access-Control-Allow-Origin': origin,
@@ -153,63 +148,8 @@ export async function POST(request) {
     return json(origin, 400, { error });
   }
 
-  const name = fields.name.trim();
-  const email = fields.email.trim();
-  const params = new URLSearchParams();
-  params.set('name', name);
-  params.set('email', email);
-  params.set('checkin', (fields.checkin || '').trim());
-  params.set('checkout', (fields.checkout || '').trim());
-  params.set('guests', (fields.guests || '').trim());
-  params.set('message', fields.message || '');
-  params.set('_subject', 'Costa Medellin inquiry');
-  params.set('_replyto', email);
-  params.set('_captcha', 'false');
-  params.set('_template', 'table');
-
-  let upstream;
-  try {
-    upstream = await fetch(FORMSUBMIT_URL, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Origin: origin,
-        Referer: `${origin}/`,
-      },
-      body: params.toString(),
-      signal: AbortSignal.timeout(12000),
-    });
-  } catch {
-    return json(origin, 502, {
-      error: 'Sorry, we could not send your inquiry. Please email costamedellin.ph@gmail.com or try again.',
-    });
-  }
-
-  const contentType = upstream.headers.get('content-type') || '';
-  let data = {};
-  if (contentType.includes('application/json')) {
-    data = await upstream.json().catch(() => ({}));
-  } else {
-    await upstream.text().catch(() => '');
-    return json(origin, 502, {
-      error: 'Sorry, we could not send your inquiry. Please email costamedellin.ph@gmail.com or try again.',
-    });
-  }
-
-  if (isActivationMessage(data.message)) {
-    return json(origin, 200, { ok: true, needsActivation: true });
-  }
-
-  const failed =
-    !upstream.ok ||
-    data.success === false ||
-    data.success === 'false';
-  if (failed) {
-    return json(origin, 502, {
-      error: 'Sorry, we could not send your inquiry. Please email costamedellin.ph@gmail.com or try again.',
-    });
-  }
-
-  return json(origin, 200, { ok: true });
+  // Formsubmit's AJAX endpoint is Cloudflare-gated from Vercel/datacenter
+  // IPs (verified: function POST returns a challenge HTML page, not JSON).
+  // The browser completes the send to this server-provided URL after the gate.
+  return json(origin, 200, { ok: true, submitUrl: FORMSUBMIT_URL });
 }
