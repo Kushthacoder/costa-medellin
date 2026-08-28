@@ -33,10 +33,50 @@ function initPage() {
   const form = document.getElementById('inquiryForm');
   const note = document.getElementById('formNote');
   if (form && note) {
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      note.textContent = "Thanks! This is a demo form — connect it to Formspree, Netlify Forms, or your email backend to receive real inquiries.";
-      form.reset();
+      if (form.dataset.sending === '1') return;
+      form.dataset.sending = '1';
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+      note.textContent = '';
+
+      const payload = {
+        name: form.elements.name.value,
+        email: form.elements.email.value,
+        checkin: form.elements.checkin.value,
+        checkout: form.elements.checkout.value,
+        guests: form.elements.guests.value,
+        message: form.elements.message.value,
+        _honey: form.elements._honey ? form.elements._honey.value : '',
+      };
+
+      try {
+        const res = await fetch('/api/inquire', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        let data = {};
+        try {
+          data = await res.json();
+        } catch {
+          data = {};
+        }
+        if (res.ok && data.ok) {
+          note.textContent = data.needsActivation
+            ? 'Thanks! Costa Medellin needs to confirm a one-time email before inquiries arrive. You can also write us at costamedellin.ph@gmail.com.'
+            : 'Thanks! Your inquiry has been sent. We will get back to you soon.';
+          form.reset();
+        } else {
+          note.textContent = data.error || 'Sorry, we could not send your inquiry. Please email costamedellin.ph@gmail.com or try again.';
+        }
+      } catch {
+        note.textContent = 'Sorry, we could not send your inquiry. Please email costamedellin.ph@gmail.com or try again.';
+      } finally {
+        form.dataset.sending = '0';
+        if (submitBtn) submitBtn.disabled = false;
+      }
     });
   }
 
